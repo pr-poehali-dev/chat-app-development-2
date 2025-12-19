@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -6,6 +6,8 @@ import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
+import VoiceCall from '@/components/VoiceCall';
+import { useToast } from '@/hooks/use-toast';
 
 interface User {
   id: string;
@@ -68,6 +70,47 @@ const Index = () => {
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [activeCall, setActiveCall] = useState<{ userId: string; username: string; isIncoming: boolean } | null>(null);
+  const { toast } = useToast();
+
+  const SIGNALING_URL = 'https://functions.poehali.dev/11afd462-2d2b-4920-9145-606566ab0193';
+
+  useEffect(() => {
+    fetch(SIGNALING_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': currentUser.id,
+      },
+      body: JSON.stringify({
+        action: 'register',
+        username: currentUser.username,
+      }),
+    });
+
+    const pollInterval = setInterval(() => {
+      fetch(`${SIGNALING_URL}?action=poll`, {
+        headers: {
+          'X-User-Id': currentUser.id,
+        },
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.calls && data.calls.length > 0) {
+            const incomingCall = data.calls[0];
+            const caller = getUserById(incomingCall.callerId);
+            if (caller) {
+              toast({
+                title: 'Входящий звонок',
+                description: `${caller.username} звонит вам`,
+              });
+            }
+          }
+        });
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, []);
 
   const handleSendMessage = () => {
     if (!messageInput.trim() || !selectedChat) return;
@@ -408,6 +451,16 @@ const Index = () => {
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={() => {
+                    const targetUser = getUserById(selectedChat.userId);
+                    if (targetUser) {
+                      setActiveCall({
+                        userId: targetUser.id,
+                        username: targetUser.username,
+                        isIncoming: false,
+                      });
+                    }
+                  }}
                   className="h-10 w-10 rounded-2xl hover:bg-accent/20 transition-all duration-300 hover:scale-110"
                 >
                   <Icon name="Phone" size={20} />
@@ -518,6 +571,17 @@ const Index = () => {
           </div>
         )}
       </div>
+
+      {activeCall && (
+        <VoiceCall
+          currentUserId={currentUser.id}
+          targetUserId={activeCall.userId}
+          targetUsername={activeCall.username}
+          isIncoming={activeCall.isIncoming}
+          onClose={() => setActiveCall(null)}
+          signalingUrl={SIGNALING_URL}
+        />
+      )}
     </div>
   );
 };

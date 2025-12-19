@@ -1,0 +1,27 @@
+{
+  "tests": [
+    {
+      "name": "Register user",
+      "method": "POST",
+      "headers": {
+        "X-User-Id": "test-user-1"
+      },
+      "body": {
+        "action": "register",
+        "username": "TestUser"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "userId": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get online users",
+      "method": "GET",
+      "path": "/?action=online_users",
+      "expectedStatus": 200
+    }
+  ]
+}
